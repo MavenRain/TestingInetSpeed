@@ -56,6 +56,8 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return static_cast<double>(0);
 		auto connectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		auto host = gethostbyname("www.google.com");
+		//PADDRINFOA addrInfo;
+		//if (0 != getaddrinfo("www.google.com", "80", NULL, &addrInfo)) return static_cast<double>(0);
 		SOCKADDR_IN sockAddr;
 		sockAddr.sin_family = AF_INET;
 		sockAddr.sin_port = htons(80);
@@ -68,9 +70,10 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 			--retries;
 			return static_cast<double>(0);
 		}
+		auto speed = duration_cast<milliseconds>(system_clock::now() - start).count();
 		closesocket(connectSocket);
 		WSACleanup();
-		return static_cast<double>(duration_cast<milliseconds>(system_clock::now() - start).count());
+		return static_cast<double>(speed);
 	};
 
 	vector<task<double>> connectTaskList;
@@ -96,6 +99,65 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 			connectSpeedsSum += val;
 		}
 		return GetInternetConnectionSpeed(connectSpeedsSum / connectSpeeds.size());		
+	});
+}
+
+task<double> InternetConnectionState::RawSpeed()
+{
+	auto retries = 4;
+	long long task_timeout_ms = 1000;
+	vector<double> connectSpeeds;
+
+	auto connectTask = [&connectSpeeds, &retries, task_timeout_ms]
+	{
+		vector<char*> socketTcpWellKnownHostNames{ "google.com", "pandora.com", "facebook.com", "forbes.com" };
+		WSADATA wsaData;
+		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return static_cast<double>(0);
+		auto connectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		auto host = gethostbyname("www.google.com");
+		//PADDRINFOA addrInfo;
+		//if (0 != getaddrinfo("www.google.com", "80", NULL, &addrInfo)) return static_cast<double>(0);
+		SOCKADDR_IN sockAddr;
+		sockAddr.sin_family = AF_INET;
+		sockAddr.sin_port = htons(80);
+		sockAddr.sin_addr.s_addr = *reinterpret_cast<unsigned long*>(host->h_addr);
+		auto start = system_clock::now();
+		if (0 != connect(connectSocket, reinterpret_cast<SOCKADDR*>(&sockAddr), sizeof(sockAddr)))
+		{
+			closesocket(connectSocket);
+			WSACleanup();
+			--retries;
+			return static_cast<double>(0);
+		}
+		auto speed = duration_cast<milliseconds>(system_clock::now() - start).count();
+		closesocket(connectSocket);
+		WSACleanup();
+		return static_cast<double>(speed);
+	};
+
+	vector<task<double>> connectTaskList;
+
+	auto timeoutTask = create_task([task_timeout_ms]
+	{
+		sleep_for(milliseconds(task_timeout_ms));
+		return static_cast<double>(0);
+	});
+
+	for (auto i = 4; i > 0; --i)
+	{
+		connectTaskList.push_back(create_task(connectTask));
+	}
+
+	return (when_all(begin(connectTaskList), end(connectTaskList)) || timeoutTask).then([&](vector<double> results)
+	{
+		//Compute speed...
+		auto connectSpeedsSum = 0.0;
+		//if (connectSpeeds.size() == 0) return ConnectionSpeed::Unknown;
+		for (auto val : results)
+		{
+			connectSpeedsSum += val;
+		}
+		return connectSpeedsSum / connectSpeeds.size();
 	});
 }
 

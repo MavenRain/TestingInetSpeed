@@ -5,9 +5,9 @@
 
 using namespace std;
 
-int main(int argc, char* argv[])
+void Test1()
 {
-	while(true)
+	while (true)
 	{
 		switch (InternetConnectionState::InternetConnectSocketAsync().get())
 		{
@@ -26,5 +26,18 @@ int main(int argc, char* argv[])
 		}
 		cin.ignore();
 	}
-	
+}
+
+void Test2()
+{
+	while (true)
+	{
+		cout << InternetConnectionState::RawSpeed().get();
+		cin.ignore();
+	}
+}
+
+int main(int argc, char* argv[])
+{
+	Test2();
 }

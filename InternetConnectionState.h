@@ -17,4 +17,5 @@ public:
 	static Concurrency::task<ConnectionSpeed> InternetConnectSocketAsync();
 	static bool _connected;
 	static ConnectionSpeed GetInternetConnectionSpeed(double);
+	static Concurrency::task<double> RawSpeed();
 };
