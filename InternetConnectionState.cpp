@@ -53,7 +53,7 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 	{
 		vector<char*> socketTcpWellKnownHostNames{ "google.com", "pandora.com", "facebook.com", "forbes.com" };
 		WSADATA wsaData;
-		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return;
+		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return static_cast<double>(0);
 		auto connectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		auto host = gethostbyname("www.google.com");
 		SOCKADDR_IN sockAddr;
@@ -61,23 +61,24 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 		sockAddr.sin_port = htons(80);
 		sockAddr.sin_addr.s_addr = *reinterpret_cast<unsigned long*>(host->h_addr);
 		auto start = system_clock::now();
-		if (0 != connect(connectSocket, reinterpret_cast<SOCKADDR*>(&sockAddr), sizeof(sockAddr) || connectSocket == INVALID_SOCKET) )
+		if (0 != connect(connectSocket, reinterpret_cast<SOCKADDR*>(&sockAddr), sizeof(sockAddr)) )
 		{
 			closesocket(connectSocket);
 			WSACleanup();
 			--retries;
-			return;
+			return static_cast<double>(0);
 		}
-		connectSpeeds.push_back(duration_cast<milliseconds>(system_clock::now() - start).count());
 		closesocket(connectSocket);
 		WSACleanup();
+		return static_cast<double>(duration_cast<milliseconds>(system_clock::now() - start).count());
 	};
 
-	vector<task<void>> connectTaskList;
+	vector<task<double>> connectTaskList;
 
 	auto timeoutTask = create_task([task_timeout_ms]
 	{
 		sleep_for(milliseconds(task_timeout_ms));
+		return static_cast<double>(0);
 	});
 
 	for (auto i = 4; i > 0; --i)
@@ -85,12 +86,12 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 		connectTaskList.push_back(create_task(connectTask));
 	}
 
-	return (when_all(begin(connectTaskList), end(connectTaskList)) || timeoutTask).then([&]
+	return (when_all(begin(connectTaskList), end(connectTaskList)) || timeoutTask).then([&](vector<double> results)
 	{
 		//Compute speed...
 		auto connectSpeedsSum = 0.0;
 		//if (connectSpeeds.size() == 0) return ConnectionSpeed::Unknown;
-		for (auto val : connectSpeeds)
+		for (auto val : results)
 		{
 			connectSpeedsSum += val;
 		}
