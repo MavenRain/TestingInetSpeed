@@ -12,6 +12,8 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+
+
 using namespace std;
 using namespace this_thread;
 using namespace chrono;
@@ -52,39 +54,21 @@ task<ConnectionSpeed> InternetConnectionState::InternetConnectSocketAsync()
 		vector<char*> socketTcpWellKnownHostNames{ "google.com", "pandora.com", "facebook.com", "forbes.com" };
 		WSADATA wsaData;
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return;
-		struct addrinfo *result = nullptr;
-		struct addrinfo *ptr = nullptr;
-		struct addrinfo hints;
-		ZeroMemory(&hints, sizeof(hints));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-		if (getaddrinfo("google.com", "8080", &hints, &result) != 0)
-		{
-			WSACleanup();
-			--retries;
-			return;
-		}
-		ptr = move(result);
-		auto connectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-		freeaddrinfo(result);
-		auto start = clock();
-		if (SOCKET_ERROR == connect(connectSocket, ptr->ai_addr, static_cast<int>(ptr->ai_addrlen)))
+		auto connectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		auto host = gethostbyname("www.google.com");
+		SOCKADDR_IN sockAddr;
+		sockAddr.sin_family = AF_INET;
+		sockAddr.sin_port = htons(80);
+		sockAddr.sin_addr.s_addr = *reinterpret_cast<unsigned long*>(host->h_addr);
+		auto start = system_clock::now();
+		if (0 != connect(connectSocket, reinterpret_cast<SOCKADDR*>(&sockAddr), sizeof(sockAddr) || connectSocket == INVALID_SOCKET) )
 		{
 			closesocket(connectSocket);
 			WSACleanup();
 			--retries;
 			return;
 		}
-		if (connectSocket = INVALID_SOCKET)
-		{
-			closesocket(connectSocket);
-			WSACleanup();
-			--retries;
-			return;
-		}
-		auto stop = clock();
-		connectSpeeds.push_back((stop - start) / CLOCKS_PER_SEC * 1000);
+		connectSpeeds.push_back(duration_cast<milliseconds>(system_clock::now() - start).count());
 		closesocket(connectSocket);
 		WSACleanup();
 	};

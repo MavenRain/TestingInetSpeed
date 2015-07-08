@@ -1,4 +1,5 @@
 #pragma once
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 enum class ConnectionType;
 enum class ConnectionSpeed;
